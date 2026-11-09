@@ -349,6 +349,8 @@ function App() {
       </aside>
 
       <main className="main">
+{active === "inventory" ? <InventoryPage language={language} /> : <> 
+
         <header className="topbar">
           <input className="search" placeholder={t.search} />
           <div className="top-actions">
@@ -424,7 +426,7 @@ function App() {
             <div className="quick-actions">
               <button onClick={() => showNotice(t.newSale + " — قريباً")}>
                 <span>＋</span>{t.newSale}
-              </button>
+              </button>s
               <button onClick={() => showNotice(t.addProduct + " — قريباً")}>
                 <span>▣</span>{t.addProduct}
               </button>
@@ -498,11 +500,76 @@ function App() {
             </div>
           </div>
         </section>
-      </main>
+      
+</>}
+</main>
 
       {notice && <div className="notice">{notice}</div>}
     </div>
   );
+}
+
+
+function InventoryPage({ language }) {
+  const ar = language === "ar";
+  const [products, setProducts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mcm_erp_products") || "[]"); }
+    catch { return []; }
+  });
+  const [form, setForm] = useState({ name: "", sku: "", category: "", price: "", quantity: "", minStock: "5" });
+  const [editing, setEditing] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const saveProducts = (items) => {
+    setProducts(items);
+    localStorage.setItem("mcm_erp_products", JSON.stringify(items));
+  };
+  const submit = (e) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    const item = { ...form, price: Number(form.price), quantity: Number(form.quantity), minStock: Number(form.minStock) };
+    if (editing !== null) saveProducts(products.map(p => p.id === editing ? { ...item, id: editing } : p));
+    else saveProducts([...products, { ...item, id: Date.now() }]);
+    setEditing(null);
+    setForm({ name: "", sku: "", category: "", price: "", quantity: "", minStock: "5" });
+  };
+  const changeStock = (id, amount) => saveProducts(products.map(p =>
+    p.id === id ? { ...p, quantity: Math.max(0, p.quantity + amount) } : p
+  ));
+  const filtered = products.filter(p =>
+    [p.name, p.sku, p.category].join(" ").toLowerCase().includes(search.toLowerCase())
+  );
+  const field = { padding: "11px", border: "1px solid #d7dfd9", borderRadius: "8px", minWidth: 0, width: "100%", boxSizing: "border-box" };
+  const button = { padding: "9px 13px", border: 0, borderRadius: "7px", cursor: "pointer", background: "#103b2c", color: "white" };
+
+  return <section style={{ padding: 20, background: "#f7faf8", borderRadius: 12, color: "#173c2c" }}>
+    <h2>{ar ? "إدارة المنتجات والمخزون" : "Products & Inventory"}</h2>
+    <p>{ar ? "إضافة المنتجات ومتابعة الأسعار والكميات." : "Add products and manage prices and stock levels."}</p>
+    <form onSubmit={submit} style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, background: "white", padding: 15, borderRadius: 10, marginBottom: 18 }}>
+      <input style={field} placeholder={ar ? "اسم المنتج *" : "Product name *"} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required />
+      <input style={field} placeholder="SKU" value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })} />
+      <input style={field} placeholder={ar ? "التصنيف" : "Category"} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} />
+      <input style={field} type="number" min="0" step="0.01" placeholder={ar ? "السعر" : "Price"} value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} />
+      <input style={field} type="number" min="0" placeholder={ar ? "الكمية" : "Quantity"} value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} />
+      <input style={field} type="number" min="0" placeholder={ar ? "حد التنبيه" : "Low-stock limit"} value={form.minStock} onChange={e => setForm({ ...form, minStock: e.target.value })} />
+      <button style={button} type="submit">{editing !== null ? (ar ? "حفظ التعديل" : "Save changes") : (ar ? "إضافة المنتج" : "Add product")}</button>
+      {editing !== null && <button type="button" style={{ ...button, background: "#777" }} onClick={() => { setEditing(null); setForm({ name: "", sku: "", category: "", price: "", quantity: "", minStock: "5" }); }}>{ar ? "إلغاء" : "Cancel"}</button>}
+    </form>
+    <input style={{ ...field, maxWidth: 350, marginBottom: 15 }} placeholder={ar ? "ابحث عن منتج..." : "Search products..."} value={search} onChange={e => setSearch(e.target.value)} />
+    <div style={{ overflowX: "auto", background: "white", borderRadius: 10 }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 650, textAlign: "start" }}>
+        <thead><tr>{(ar ? ["المنتج", "SKU", "التصنيف", "السعر", "الكمية", "الحالة", "الإجراءات"] : ["Product", "SKU", "Category", "Price", "Stock", "Status", "Actions"]).map(x => <th key={x} style={{ padding: 12, borderBottom: "1px solid #ddd" }}>{x}</th>)}</tr></thead>
+        <tbody>{filtered.map(p => <tr key={p.id}>
+          <td style={{ padding: 10 }}>{p.name}</td><td>{p.sku}</td><td>{p.category}</td><td>${p.price.toFixed(2)}</td>
+          <td><button onClick={() => changeStock(p.id, -1)}>-</button> {p.quantity} <button onClick={() => changeStock(p.id, 1)}>+</button></td>
+          <td style={{ color: p.quantity <= p.minStock ? "#c0392b" : "#16834a" }}>{p.quantity <= p.minStock ? (ar ? "مخزون منخفض" : "Low stock") : (ar ? "متوفر" : "In stock")}</td>
+          <td><button style={button} onClick={() => { setEditing(p.id); setForm({ ...p, price: String(p.price), quantity: String(p.quantity), minStock: String(p.minStock) }); }}>{ar ? "تعديل" : "Edit"}</button> <button style={{ ...button, background: "#b83232" }} onClick={() => { if (confirm(ar ? "حذف المنتج؟" : "Delete this product?")) saveProducts(products.filter(x => x.id !== p.id)); }}>{ar ? "حذف" : "Delete"}</button></td>
+        </tr>)}</tbody>
+      </table>
+      {filtered.length === 0 && <p style={{ padding: 15 }}>{ar ? "لا توجد منتجات بعد." : "No products yet."}</p>}
+    </div>
+    <p>{ar ? `عدد المنتجات: ${products.length} | تنبيهات المخزون المنخفض: ${products.filter(p => p.quantity <= p.minStock).length}` : `Products: ${products.length} | Low-stock alerts: ${products.filter(p => p.quantity <= p.minStock).length}`}</p>
+  </section>;
 }
 
 export default App;
