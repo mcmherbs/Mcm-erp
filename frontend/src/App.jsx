@@ -426,7 +426,7 @@ function App() {
             <div className="quick-actions">
               <button onClick={() => showNotice(t.newSale + " — قريباً")}>
                 <span>＋</span>{t.newSale}
-              </button>s
+              </button>
               <button onClick={() => showNotice(t.addProduct + " — قريباً")}>
                 <span>▣</span>{t.addProduct}
               </button>
